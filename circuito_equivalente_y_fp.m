@@ -38,9 +38,10 @@ function transformador_gui_completo()
 
     uicontrol(f,'Style','text','Position',[20 370 150 20],'String','P0 (W):');
     P0 = uicontrol(f,'Style','edit','Position',[180 370 100 25]);
+
+        uicontrol(f,'Style','text','Position',[20 340 150 20],'String','V0 (V):');
+    V0 = uicontrol(f,'Style','edit','Position',[180 340 100 25]);
    
-    uicontrol(f,'Style','text','Position',[57 340 150 20], ...
-          'String','Nota: V0 ≈ Vs (en vacío)', 'ForegroundColor', [0 0.5 0]);
 
     uicontrol(f,'Style','pushbutton','Position',[300 400 200 30],...
               'String','Calcular Vacío','Callback',@calcular_vacio);
@@ -119,42 +120,54 @@ function transformador_gui_completo()
         set(salida, 'String', texto);
     end
 
-    function calcular_vacio(~,~)
-        Vs_ = str2double(get(Vs_general,'String'));
-        I0_ = str2double(get(I0,'String'));
-        P0_ = str2double(get(P0,'String'));
-        Vp_ = str2double(get(Vp_general,'String'));
+   function calcular_vacio(~,~)
+    % Leer datos de la GUI
+    V0_ = str2double(get(V0, 'String'));   % Tensión en vacío (medida en primario)
+    I0_ = str2double(get(I0, 'String'));   % Corriente en vacío
+    P0_ = str2double(get(P0, 'String'));   % Potencia en vacío
+    Vp_ = str2double(get(Vp_general, 'String'));  % Tensión nominal del primario
+    Vs_ = str2double(get(Vs_general, 'String'));  % Tensión nominal del secundario
 
-        if any(isnan([Vs_, I0_, P0_, Vp_])) || I0_ == 0 || Vs_ == 0
-            set(salida, 'String', 'Datos incompletos o inválidos en la prueba en vacío.');
-            return;
-        end
-
-        cos_theta = P0_ / (Vs_ * I0_);
-        if cos_theta > 1 || cos_theta < -1
-            set(salida, 'String', 'Error en el cálculo del ángulo: cos(θ) fuera de rango. Verifica los datos.');
-            return;
-        end
-
-        theta = acos(cos_theta);
-        Ip = I0_ * cos(theta);
-        Im = I0_ * sin(theta);
-
-        Rp2 = Vs_ / Ip;
-        Xm2 = Vs_ / Im;
-
-        a = Vp_ / Vs_;
-        Rp1 = Rp2 * a^2;
-        Xm1 = Xm2 * a^2;
-
-        texto = sprintf(['--- Resultados de Prueba en Vacío (referidos al lado BAJO) ---\n\n', ...
-                         'θ = %.2f°\nIp = %.2f A\nIm = %.2f A\nRp2 = %.2f Ω\nXm2 = %.2f Ω\n\n', ...
-                         '--- Referidos al lado ALTO ---\n\n', ...
-                         'Rp1 = %.2f Ω\nXm1 = %.2f Ω'], ...
-                         rad2deg(theta), Ip, Im, Rp2, Xm2, Rp1, Xm1);
-
-        set(salida, 'String', texto);
+    % Verificación de entrada
+    if any(isnan([V0_, I0_, P0_, Vp_, Vs_])) || I0_ == 0 || V0_ == 0
+        set(salida, 'String', 'Datos incompletos o inválidos en la prueba en vacío.');
+        return;
     end
+
+    % Cálculo del coseno de phi
+    cos_theta = P0_ / (V0_ * I0_);
+    if cos_theta > 1 || cos_theta < -1
+        set(salida, 'String', 'Error en el cálculo del ángulo: cos(θ) fuera de rango. Verifica los datos.');
+        return;
+    end
+
+    % Ángulo y componentes de corriente
+    theta = acos(cos_theta);
+    Ip = I0_ * cos(theta);   % Corriente activa (pérdidas en el núcleo)
+    Im = I0_ * sin(theta);   % Corriente de magnetización
+
+    % Parámetros referidos al lado de baja tensión
+    Rc2 = V0_ / Ip;
+    Xm2 = V0_ / Im;
+
+    % Relación de transformación
+    a = Vp_ / Vs_;
+
+    % Parámetros referidos al lado de alta tensión
+    Rc1 = Rc2 * a^2;
+    Xm1 = Xm2 * a^2;
+
+    % Mostrar resultados
+    texto = sprintf(['--- Resultados de Prueba en Vacío ---\n\n', ...
+                     'θ = %.2f°\nIp = %.2f A\nIm = %.2f A\n\n', ...
+                     '--- Referidos al lado de BAJA TENSIÓN ---\n', ...
+                     'Rc2 = %.2f Ω\nXm2 = %.2f Ω\n\n', ...
+                     '--- Referidos al lado de ALTA TENSIÓN ---\n', ...
+                     'Rc1 = %.2f Ω\nXm1 = %.2f Ω'], ...
+                     rad2deg(theta), Ip, Im, Rc2, Xm2, Rc1, Xm1);
+
+    set(salida, 'String', texto);
+end
 
     function calcular_regulacion(fp, es_adelanto)
         RS = str2double(get(rs_input, 'String'));
